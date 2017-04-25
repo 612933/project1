@@ -1,0 +1,135 @@
+DRIVER
+
+
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.conf.*;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+public class drv{
+@SuppressWarnings("deprecation")
+public static void main(String[] args)throws Exception
+{
+ Configuration conf=new Configuration();
+ Job job=new Job(conf,"miniproject");
+job.setJarByClass(drv.class);
+FileInputFormat.addInputPath(job, new Path(args[0]));
+Path outputPath =new Path(args[1]);
+FileOutputFormat.setOutputPath(job, outputPath);
+ outputPath.getFileSystem(conf).delete(outputPath, true);
+ 
+ job.setMapperClass(mpr.class);
+ job.setReducerClass(rdcr.class);
+ 
+ job.setInputFormatClass(TextInputFormat.class);
+ job.setOutputFormatClass(TextOutputFormat.class);
+ 
+ job.setMapOutputKeyClass(Text.class);
+ job.setMapOutputValueClass(IntWritable.class);
+ 
+ job.setOutputKeyClass(Text.class);
+ job.setOutputValueClass(IntWritable.class);
+ 
+job.waitForCompletion(true);
+}
+}
+
+
+MAPPER
+
+ import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.*;
+
+public class mpr extends Mapper<LongWritable, Text,Text,IntWritable>{
+Text outkey=new Text();
+IntWritable outvalue=new IntWritable();
+public void map(LongWritable key, Text value, Context context)
+ throws IOException, InterruptedException{
+ Date d1 = null,d2 = null,dx = null;
+	String[] lineArray = value.toString().split(",");
+ if(lineArray.length>15)
+ {
+	 if(lineArray[8].equalsIgnoreCase("true"))
+	 {
+		SimpleDateFormat d = new SimpleDateFormat("MM/dd/YYYY");
+		try {
+			 dx =d.parse(lineArray[2]);
+			 d1 =d.parse("01/10/2014");
+			 d2 =d.parse("30/09/2015");
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		if(dx.after(d1)||dx.before(d2))
+		{	  
+		outkey.set("x");
+	    outvalue.set(1);
+       context.write(outkey,outvalue);
+		}
+	 }
+ }
+ 
+
+}
+
+}
+
+
+REDUCER
+
+import java.io.IOException;
+import java.util.StringTokenizer;
+
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.Mapper.Context;
+public class rdcr extends Reducer<Text,IntWritable,Text,IntWritable>{
+ public void reduce(Text key, Iterable<IntWritable>values, Context context)
+ throws IOException, InterruptedException{
+ int sum=0;
+for(IntWritable value: values)
+{ sum=sum+value.get();
+}
+ context.write(key, new IntWritable(sum)); }
+}
+
+
+
+
+
+pig code
+
+
+ a = load '/home/acadgild/crimesdata.txt' using PigStorage(',') as (id:chararray ,cn:chararray, c:chararray ,d:chararray 
+ ,e:chararray ,f:chararray ,g:chararray ,h:chararray ,i:chararray ,j:chararray ,k:chararray ,l:chararray ,m:chararray ,
+ n:chararray ,o:chararray ,p:chararray ,q:chararray ,r:chararray ,s:chararray ,t:chararray ,u:chararray ,v:chararray );
+ 
+ 
+filtrd = filter a by h == 'true';
+
+ x = foreach filtrd generate ToDate(SUBSTRING(s,0,10),'MM/dd/yyyy') as (udate:datetime);
+
+y = filter x by DaysBetween(udate,(datetime)ToDate('10/01/2014','MM/dd/yyyy'))>=(long)0 AND 
+DaysBetween((datetime)ToDate('10/01/2015','MM/dd/yyyy'),udate)>=(long)0;
+
+grpd = group y all;
+
+ finalcount = foreach grpd generate COUNT(y.udate);
+dump finalcount;
+
+
